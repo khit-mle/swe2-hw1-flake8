@@ -11,6 +11,11 @@ from streamlit_extras.stylable_container import stylable_container
 from llm_summ.summ_fetcher import fetch_summary
 from utils.cuda_checker import check_cuda
 from utils.data_validator import validate_youtube_url
+from utils.st_rerun_dispatcher import perform_st_rerun_tasks
+
+
+# Do the prep work each Streamlit re-run
+perform_st_rerun_tasks()
 
 
 # No type hints yet available for Streamlit
@@ -34,7 +39,7 @@ def save_uploaded_file(uploaded_file) -> Path:
     with file_path.open("wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    st.toast(f"Saved file: {file_path}")
+    st.toast(f"File available: {file_path}")
 
     return file_path
 
@@ -42,8 +47,13 @@ def save_uploaded_file(uploaded_file) -> Path:
 st.markdown("### 📖 Итоговый проект группы 1.12")
 
 uploaded_file_path = ""
+
+if "file_path" not in st.session_state:
+    st.session_state["file_path"] = ""
+
+
 with st.container():
-    st.write("Выбор видеофайла для транскибирования")
+    st.write("Выбор видеофайла для транскрибирования")
     file_mode = st.selectbox(
         "Выберите тип загрузки файла: ",
         ["С Вашего устройства", "С YouTube"],
@@ -68,7 +78,7 @@ with st.container():
         )
         if not validate_youtube_url(url):
             need_url_message = (
-                "🙃 Я исчезну, когда Вы введёте корректную ссылку на YouTube."
+                "🙃 Я исчезну, когда Вы введёте корректную ссылку на YouTube. "
                 + "После ввода нажмите Enter или кликните/тапните "
                 + "по любому пустому месту на экране"
             )
@@ -82,20 +92,27 @@ with st.container():
                 tmp_name = url.split("?v=")[1] + ".mp4"
                 uploaded_file_path = tmp_dir_path / tmp_name
                 st.session_state["file_path"] = uploaded_file_path
-                yt = YouTube(url)
-                stream = yt.streams.get_audio_only()
-                with st.spinner("📥 Загружаем файл..."):
-                    stream.download(output_path=tmp_dir_path, filename=tmp_name)
-                    st.toast(f"💯 Файл с YouTube загружен {uploaded_file_path}")
+                # st.session_state["file_path"] = uploaded_file_path
+                try:
+                    yt = YouTube(url)
+                    stream = yt.streams.get_audio_only()
+                    with st.spinner("📥 Загружаем файл..."):
+                        stream.download(output_path=tmp_dir_path, filename=tmp_name)
+                        st.toast(f"💯 Файл с YouTube загружен {uploaded_file_path}")
+                except:
+                    st.error(
+                        "😔 Не удалось загрузить видео с YouTube. Попробуйте другую ссылку или выберите опцию с загрузкой файла с Вашего устройства"
+                    )
 
     with st.expander("🗃️ Дополнительный функционал"):
         summary_checkbox = st.checkbox("🔎 Аннотирование текста", value=False)
         transcribe_text = ""
 
     transcribe = st.button(
-        label="🏁 Запустить транскибирование!",
-        disabled=not st.session_state.get("file_path"),
+        label="🏁 Запустить транскрибирование!",
+        disabled=(not Path(st.session_state["file_path"]).is_file()),
     )
+    # ('uploaded_file_path' in globals() and
 
     if transcribe:
         time_start = time.time()
@@ -123,7 +140,7 @@ with st.container():
 
         with st.spinner("🔬 Первичный анализ файла. Минутку..."):
             segments, info = model.transcribe(
-                audio=str(uploaded_file_path), beam_size=5
+                audio=str(st.session_state["file_path"]), beam_size=5
             )
 
         st.write(
@@ -168,6 +185,9 @@ with st.container():
             </style>""",
                 unsafe_allow_html=True,
             )
+
+        # uploaded_file_path.unlink()
+        # st.toast("🗑️ Uploaded file removed after transcribing")
 
         with st.expander("📖 Текст без временны́х меток:"):
             # wrap text to fit in the container with copy-to-clipboard

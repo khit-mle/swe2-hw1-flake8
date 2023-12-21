@@ -3,7 +3,7 @@ import re
 import streamlit as st
 
 
-YT_REGEX = r"^(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/(watch\?v=|embed/|v/|.+\?v=)?(?P<id>[A-Za-z0-9\-=_]{11})$"
+YT_REGEX = r"^https://www\.youtube\.com/watch\?v=(?P<id>[A-Za-z0-9\-=_]{11})$"
 
 
 def validate_youtube_url(url: str) -> bool:
